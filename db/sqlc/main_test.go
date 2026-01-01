@@ -18,7 +18,7 @@ var (
 func TestMain(m *testing.M) {
 	config, err := util.LoadConfig("../../")
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	testDB, err = sql.Open(config.DBDriver, config.DBSource)
