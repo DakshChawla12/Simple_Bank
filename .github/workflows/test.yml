@@ -21,10 +21,14 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U root -d simple_bank"
+          --health-cmd="pg_isready -U root -d simplebank"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+    env:
+      DB_DRIVER: ${{ secrets.DB_DRIVER }}
+      DB_SOURCE: ${{ secrets.DB_SOURCE }}
+      SERVER_ADDRESS: ${{ secrets.SERVER_ADDRESS }}
 
     steps:
       - name: Checkout code
