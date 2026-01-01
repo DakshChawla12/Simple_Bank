@@ -2,6 +2,7 @@ package util
 
 import (
 	"log"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -17,18 +18,18 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetConfigName("app")
 	viper.SetConfigType("env")
 
+	// Important for env vars
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
-	err = viper.ReadInConfig()
-	if err != nil {
+
+	if err = viper.ReadInConfig(); err != nil {
 		log.Println("config file not found, using environment variables")
-		return
 	}
 
-	err = viper.Unmarshal(&config)
-	if err != nil {
-		log.Println(err)
-		return
+	// Always unmarshal (env OR file)
+	if err = viper.Unmarshal(&config); err != nil {
+		return config, err
 	}
 
-	return
+	return config, nil
 }
