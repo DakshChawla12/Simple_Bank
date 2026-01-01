@@ -22,12 +22,14 @@ func LoadConfig(path string) (config Config, err error) {
 	if err != nil {
 		// If the error is that the config file was not found,
 		// we ignore it and rely on environment variables.
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return // It's a real error (e.g., syntax error)
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			err = nil // Clear the error since it's not critical
+		} else {
+			return config, err // Return other errors (syntax errors, etc.)
 		}
 	}
 
-	// Reset err to nil so we don't return "file not found" to TestMain
+	// Unmarshal the config
 	err = viper.Unmarshal(&config)
 	return config, err
 }
