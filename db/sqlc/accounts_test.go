@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/DakshChawla/simplebank/util"
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
 

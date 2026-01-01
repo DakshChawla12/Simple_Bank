@@ -4,6 +4,7 @@ import (
 	"log"
 	"strings"
 
+	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 )
 
