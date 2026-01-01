@@ -1,9 +1,6 @@
 package util
 
 import (
-	"log"
-	"strings"
-
 	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 )
@@ -19,18 +16,18 @@ func LoadConfig(path string) (config Config, err error) {
 	viper.SetConfigName("app")
 	viper.SetConfigType("env")
 
-	// Important for env vars
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	if err = viper.ReadInConfig(); err != nil {
-		log.Println("config file not found, using environment variables")
+	err = viper.ReadInConfig()
+	if err != nil {
+		// If the error is that the config file was not found,
+		// we ignore it and rely on environment variables.
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return // It's a real error (e.g., syntax error)
+		}
 	}
 
-	// Always unmarshal (env OR file)
-	if err = viper.Unmarshal(&config); err != nil {
-		return config, err
-	}
-
-	return config, nil
+	// Reset err to nil so we don't return "file not found" to TestMain
+	err = viper.Unmarshal(&config)
+	return config, err
 }

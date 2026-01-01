@@ -16,14 +16,14 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	config, err := util.LoadConfig("../../")
+	config, err := util.LoadConfig("../..")
 	if err != nil {
-		log.Println(err)
+		log.Fatal("cannot load config:", err) // Stops here instead of panicking later
 	}
 
 	testDB, err = sql.Open(config.DBDriver, config.DBSource)
 	if err != nil {
-		log.Println(err)
+		log.Fatal("cannot connect to db:", err) // Ensures testDB is not nil
 	}
 
 	testQueries = New(testDB)
