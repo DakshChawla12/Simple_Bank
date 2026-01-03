@@ -11,6 +11,9 @@ import (
 )
 
 func TestCreateAccount(t *testing.T) {
+
+	user := createRandomUser(t)
+
 	testCases := []struct {
 		name      string
 		arg       CreateAccountParams
@@ -19,7 +22,7 @@ func TestCreateAccount(t *testing.T) {
 		{
 			name: "valid USD account",
 			arg: CreateAccountParams{
-				Owner:    "test1",
+				Owner:    user.Username,
 				Balance:  1000,
 				Currency: "USD",
 			},
@@ -28,9 +31,9 @@ func TestCreateAccount(t *testing.T) {
 		{
 			name: "valid INR account",
 			arg: CreateAccountParams{
-				Owner:    "test2",
+				Owner:    user.Username,
 				Balance:  1000,
-				Currency: "USD",
+				Currency: "EUR",
 			},
 			expectErr: false,
 		},
@@ -60,8 +63,11 @@ func TestCreateAccount(t *testing.T) {
 }
 
 func createRandomAccount(t *testing.T) Account {
+
+	user := createRandomUser(t)
+
 	arg := CreateAccountParams{
-		Owner:    util.RandomOwner(),
+		Owner:    user.Username,
 		Balance:  util.RandomMoney(),
 		Currency: "USD",
 	}
