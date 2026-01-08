@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	db "github.com/DakshChawla/simplebank/db/sqlc"
+	"github.com/DakshChawla/simplebank/token"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,24 +17,24 @@ type transferRequest struct {
 	Currency      string `json:"currency" binding:"required,currency"`
 }
 
-func (server *Server) validateAccount(c *gin.Context, accountID int64, currency string) bool {
+func (server *Server) validateAccount(c *gin.Context, accountID int64, currency string) (db.Account, bool) {
 	account, err := server.store.GetAccount(c, accountID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, errorResponse(err))
-			return false
+			return account, false
 		}
 		c.JSON(http.StatusInternalServerError, errorResponse(err))
-		return false
+		return account, false
 	}
 
 	if account.Currency != currency {
 		err = errors.New("invalid currency")
 		c.JSON(http.StatusBadRequest, errorResponse(err))
-		return false
+		return account, false
 	}
 
-	return true
+	return account, true
 }
 
 func (server *Server) createTransfer(c *gin.Context) {
@@ -43,7 +44,19 @@ func (server *Server) createTransfer(c *gin.Context) {
 		return
 	}
 
-	if !server.validateAccount(c, req.FromAccountID, req.Currency) || !server.validateAccount(c, req.ToAccountID, req.Currency) {
+	fromAccount, valid := server.validateAccount(c, req.FromAccountID, req.Currency)
+	if !valid {
+		return
+	}
+
+	_, valid = server.validateAccount(c, req.ToAccountID, req.Currency)
+	if !valid {
+		return
+	}
+
+	authPayload := c.MustGet(authorizationPayloadKey).(*token.Payload)
+	if authPayload.Username != fromAccount.Owner {
+		c.JSON(http.StatusUnauthorized, errors.New("unauthorized"))
 		return
 	}
 

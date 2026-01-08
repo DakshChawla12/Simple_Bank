@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	mockdb "github.com/DakshChawla/simplebank/db/mock"
 	db "github.com/DakshChawla/simplebank/db/sqlc"
+	"github.com/DakshChawla/simplebank/token"
 	"github.com/DakshChawla/simplebank/util"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -24,15 +26,27 @@ func TestGetAccount(t *testing.T) {
 		name          string
 		accountID     int64
 		buildStubs    func(store *mockdb.MockStore)
+		setupAuth     func(t *testing.T, req *http.Request, tokenMaker token.Maker)
 		checkResponse func(t *testing.T, recorder *httptest.ResponseRecorder)
 	}{
 		{
 			name:      "OK",
-			accountID: 1,
+			accountID: account.ID,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					GetAccount(gomock.Any(), int64(1)).
+					GetAccount(gomock.Any(), account.ID).
+					Times(1).
 					Return(account, nil)
+			},
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuthorization(
+					t,
+					req,
+					tokenMaker,
+					authorizationTypeBearer,
+					account.Owner,
+					time.Minute,
+				)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusOK, recorder.Code)
@@ -41,11 +55,22 @@ func TestGetAccount(t *testing.T) {
 		},
 		{
 			name:      "NotFound",
-			accountID: 1,
+			accountID: account.ID,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					GetAccount(gomock.Any(), int64(1)).
+					GetAccount(gomock.Any(), account.ID).
+					Times(1).
 					Return(db.Account{}, sql.ErrNoRows)
+			},
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuthorization(
+					t,
+					req,
+					tokenMaker,
+					authorizationTypeBearer,
+					account.Owner,
+					time.Minute,
+				)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusNotFound, recorder.Code)
@@ -53,11 +78,22 @@ func TestGetAccount(t *testing.T) {
 		},
 		{
 			name:      "InternalError",
-			accountID: 1,
+			accountID: account.ID,
 			buildStubs: func(store *mockdb.MockStore) {
 				store.EXPECT().
-					GetAccount(gomock.Any(), int64(1)).
+					GetAccount(gomock.Any(), account.ID).
+					Times(1).
 					Return(db.Account{}, sql.ErrConnDone)
+			},
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuthorization(
+					t,
+					req,
+					tokenMaker,
+					authorizationTypeBearer,
+					account.Owner,
+					time.Minute,
+				)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusInternalServerError, recorder.Code)
@@ -67,9 +103,45 @@ func TestGetAccount(t *testing.T) {
 			name:      "InvalidID",
 			accountID: 0,
 			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetAccount(gomock.Any(), gomock.Any()).
+					Times(0)
+			},
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuthorization(
+					t,
+					req,
+					tokenMaker,
+					authorizationTypeBearer,
+					account.Owner,
+					time.Minute,
+				)
 			},
 			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
+			},
+		},
+		{
+			name:      "UnauthorizedUser",
+			accountID: account.ID,
+			buildStubs: func(store *mockdb.MockStore) {
+				store.EXPECT().
+					GetAccount(gomock.Any(), account.ID).
+					Times(1).
+					Return(account, nil)
+			},
+			setupAuth: func(t *testing.T, req *http.Request, tokenMaker token.Maker) {
+				addAuthorization(
+					t,
+					req,
+					tokenMaker,
+					authorizationTypeBearer,
+					"wrong_user",
+					time.Minute,
+				)
+			},
+			checkResponse: func(t *testing.T, recorder *httptest.ResponseRecorder) {
+				require.Equal(t, http.StatusUnauthorized, recorder.Code)
 			},
 		},
 	}
@@ -89,10 +161,27 @@ func TestGetAccount(t *testing.T) {
 			req, err := http.NewRequest(http.MethodGet, url, nil)
 			require.NoError(t, err)
 
+			tc.setupAuth(t, req, server.tokenMaker)
+
 			server.router.ServeHTTP(recorder, req)
 			tc.checkResponse(t, recorder)
 		})
 	}
+}
+
+func addAuthorization(
+	t *testing.T,
+	req *http.Request,
+	tokenMaker token.Maker,
+	authorizationType string,
+	username string,
+	duration time.Duration,
+) {
+	token, err := tokenMaker.CreateToken(username, duration)
+	require.NoError(t, err)
+
+	authorizationHeader := fmt.Sprintf("%s %s", authorizationType, token)
+	req.Header.Set(authorizationHeaderKey, authorizationHeader)
 }
 
 func requireBodyMatch(t *testing.T, body *bytes.Buffer, account db.Account) {
@@ -107,6 +196,7 @@ func requireBodyMatch(t *testing.T, body *bytes.Buffer, account db.Account) {
 
 func randomAccount() db.Account {
 	return db.Account{
+		ID:       util.RandomInt(1, 1000),
 		Owner:    util.RandomOwner(),
 		Balance:  util.RandomMoney(),
 		Currency: util.RandomCurrency(),
